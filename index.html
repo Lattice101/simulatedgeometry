@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fractal Generator</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        canvas { border: 1px solid black; }
+        .controls { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Fractal Generator</h1>
+    <canvas id="fractalCanvas" width="600" height="600"></canvas>
+    <div class="controls">
+        <label>Angle 1: <input type="number" id="angle1" value="30"></label>
+        <label>Angle 2: <input type="number" id="angle2" value="-30"></label>
+        <label>Scale: <input type="number" id="scale" value="0.7" step="0.1"></label>
+        <label>Depth: <input type="number" id="depth" value="10"></label>
+        <button onclick="drawFractal()">Generate</button>
+    </div>
+    <script>
+        const canvas = document.getElementById("fractalCanvas");
+        const ctx = canvas.getContext("2d");
+
+        function drawBranch(x, y, length, angle, depth) {
+            if (depth === 0) return;
+            
+            const radian = angle * Math.PI / 180;
+            const xEnd = x + length * Math.cos(radian);
+            const yEnd = y - length * Math.sin(radian);
+            
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(xEnd, yEnd);
+            ctx.stroke();
+            
+            const scale = parseFloat(document.getElementById("scale").value);
+            const angle1 = parseFloat(document.getElementById("angle1").value);
+            const angle2 = parseFloat(document.getElementById("angle2").value);
+            
+            drawBranch(xEnd, yEnd, length * scale, angle + angle1, depth - 1);
+            drawBranch(xEnd, yEnd, length * scale, angle + angle2, depth - 1);
+        }
+        
+        function drawFractal() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "black";
+            drawBranch(canvas.width / 2, canvas.height, 100, -90, parseInt(document.getElementById("depth").value));
+        }
+    </script>
+</body>
+</html>
