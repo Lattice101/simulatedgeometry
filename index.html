@@ -48,8 +48,19 @@
             gap: 10px;
             align-items: center;
         }
+        .attachment-points {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+            margin: 10px;
+        }
         label {
             margin: 0 10px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
     </style>
 </head>
@@ -60,30 +71,28 @@
             <canvas id="fractalCanvas" width="800" height="800"></canvas>
         </div>
         <div class="editor-controls">
-            <h3>Polygon Editor</h3>
+            <h3>Step Editor</h3>
             <canvas id="editorCanvas" width="300" height="300"></canvas>
+            <div>
+                <label>Base Line Length: <input type="number" id="baseLength" value="100" min="10" max="300"></label>
+            </div>
+            <div class="attachment-points" id="attachmentPoints">
+                <!-- Populated dynamically -->
+            </div>
             <button onclick="addPoint()">Add Point</button>
             <button onclick="clearPoints()">Clear Points</button>
-            <button onclick="applyCustomPolygon()">Apply Polygon</button>
+            <button onclick="applyStep()">Apply Step</button>
         </div>
     </div>
     <div class="controls">
         <label>Animation Speed: <input type="range" id="animationSpeed" min="0.1" max="5" value="1" step="0.1"></label>
         <label>Steps: <input type="number" id="steps" value="1" min="1" max="10"></label>
         <label>Iterations: <input type="number" id="iterations" value="5" min="1" max="10"></label>
-        <label>Scale X: <input type="number" id="scaleX" value="1" step="0.1"></label>
-        <label>Scale Y: <input type="number" id="scaleY" value="1" step="0.1"></label>
+        <label>Scale: <input type="number" id="scale" value="1" step="0.1"></label>
         <label>Rotation: <input type="number" id="rotation" value="30"></label>
-        <label>Shear X: <input type="number" id="shearX" value="0" step="0.1"></label>
-        <label>Shear Y: <input type="number" id="shearY" value="0" step="0.1"></label>
-        <label>Offset X: <input type="number" id="offsetX" value="0"></label>
-        <label>Offset Y: <input type="number" id="offsetY" value="0"></label>
         <button onclick="toggleInvertColors()">Invert Colors</button>
         <button onclick="startAnimation()">Start Animation</button>
         <button onclick="stopAnimation()">Stop Animation</button>
-        <button onclick="setPolygon(3)">Triangle</button>
-        <button onclick="setPolygon(4)">Square</button>
-        <button onclick="setPolygon(5)">Pentagon</button>
         <button onclick="resetFractal()">Reset</button>
     </div>
 <script>
@@ -95,31 +104,56 @@
         let frame = 0;
         let invertColors = false;
         let animationFrame;
-        let polygonSides = 3;
         let lastTimestamp = 0;
-        let defaultValues = {
-            animationSpeed: 1,
-            steps: 1,
-            iterations: 5,
-            scaleX: 1,
-            scaleY: 1,
-            rotation: 30,
-            shearX: 0,
-            shearY: 0,
-            offsetX: 0,
-            offsetY: 0
-        };
-
-        // Polygon editor variables
         let points = [];
         let isDragging = false;
         let dragIndex = -1;
-        let customPolygonPoints = null;
+        let stepPoints = [];
+        let attachmentPoints = [];
+
+        const defaultValues = {
+            animationSpeed: 1,
+            steps: 1,
+            iterations: 5,
+            scale: 1,
+            rotation: 30,
+            baseLength: 100
+        };
 
         function initializeEditor() {
             editorCanvas.addEventListener('mousedown', startDragging);
             editorCanvas.addEventListener('mousemove', drag);
             editorCanvas.addEventListener('mouseup', stopDragging);
+            updateAttachmentPointsUI();
+            drawEditor();
+        }
+
+        function updateAttachmentPointsUI() {
+            const container = document.getElementById('attachmentPoints');
+            container.innerHTML = '';
+            
+            // Add vertex checkboxes
+            for (let i = 0; i < points.length; i++) {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `vertex-${i}`;
+                checkbox.checked = attachmentPoints.includes(`vertex-${i}`);
+                checkbox.onchange = () => updateAttachmentPoints(checkbox.id);
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(`Vertex ${i + 1}`));
+                container.appendChild(label);
+            }
+        }
+
+        function updateAttachmentPoints(id) {
+            const index = attachmentPoints.indexOf(id);
+            if (index === -1) {
+                attachmentPoints.push(id);
+            } else {
+                attachmentPoints.splice(index, 1);
+            }
             drawEditor();
         }
 
@@ -131,7 +165,7 @@
             for (let i = 0; i < points.length; i++) {
                 const dx = points[i].x - x;
                 const dy = points[i].y - y;
-                if (dx * dx + dy * dy < 100) { // 10px radius for hit detection
+                if (dx * dx + dy * dy < 100) {
                     isDragging = true;
                     dragIndex = i;
                     return;
@@ -159,11 +193,14 @@
             const centerX = editorCanvas.width / 2;
             const centerY = editorCanvas.height / 2;
             points.push({ x: centerX, y: centerY });
+            updateAttachmentPointsUI();
             drawEditor();
         }
 
         function clearPoints() {
             points = [];
+            attachmentPoints = [];
+            updateAttachmentPointsUI();
             drawEditor();
         }
 
@@ -182,92 +219,100 @@
             }
             editorCtx.stroke();
 
-            // Draw polygon
-            if (points.length > 1) {
+            // Draw base line
+            const baseLength = parseInt(document.getElementById("baseLength").value);
+            const startX = editorCanvas.width / 2 - baseLength / 2;
+            const startY = editorCanvas.height / 2;
+            editorCtx.beginPath();
+            editorCtx.strokeStyle = "#666";
+            editorCtx.moveTo(startX, startY);
+            editorCtx.lineTo(startX + baseLength, startY);
+            editorCtx.stroke();
+
+            // Draw points and connections
+            if (points.length > 0) {
                 editorCtx.beginPath();
                 editorCtx.strokeStyle = invertColors ? "white" : "black";
                 editorCtx.moveTo(points[0].x, points[0].y);
                 for (let i = 1; i < points.length; i++) {
                     editorCtx.lineTo(points[i].x, points[i].y);
                 }
-                editorCtx.closePath();
+                if (points.length > 2) {
+                    editorCtx.closePath();
+                }
                 editorCtx.stroke();
             }
 
             // Draw points
-            points.forEach(point => {
+            points.forEach((point, i) => {
                 editorCtx.beginPath();
-                editorCtx.fillStyle = invertColors ? "white" : "black";
+                editorCtx.fillStyle = attachmentPoints.includes(`vertex-${i}`) ? "red" : (invertColors ? "white" : "black");
                 editorCtx.arc(point.x, point.y, 5, 0, Math.PI * 2);
                 editorCtx.fill();
             });
         }
 
-        function applyCustomPolygon() {
-            if (points.length >= 3) {
-                customPolygonPoints = [...points];
+        function applyStep() {
+            if (points.length >= 2) {
+                stepPoints = [...points];
                 resetFractal();
             } else {
-                alert("Please add at least 3 points to create a polygon");
+                alert("Please add at least 2 points to create a step");
             }
         }
 
-        function applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY) {
-            return {
-                x: x * scaleX + y * shearX + offsetX,
-                y: x * shearY + y * scaleY + offsetY
-            };
-        }
-
-        function drawPolygon(x, y, size, sides) {
-            ctx.beginPath();
-            if (customPolygonPoints) {
-                // Draw custom polygon
-                const scale = size / 100;
-                ctx.moveTo(x + customPolygonPoints[0].x * scale, y + customPolygonPoints[0].y * scale);
-                for (let i = 1; i < customPolygonPoints.length; i++) {
-                    ctx.lineTo(x + customPolygonPoints[i].x * scale, y + customPolygonPoints[i].y * scale);
-                }
-            } else {
-                // Draw regular polygon
-                for (let i = 0; i < sides; i++) {
-                    const angle = (Math.PI * 2 / sides) * i;
-                    const px = x + size * Math.cos(angle);
-                    const py = y + size * Math.sin(angle);
-                    ctx.lineTo(px, py);
-                }
-            }
-            ctx.closePath();
-            ctx.stroke();
-        }
-
-        function drawFractalRecursive(x, y, length, angle, iterations, step) {
-            if (iterations === 0) return;
-            
-            const totalSteps = parseInt(document.getElementById("steps").value);
-            const progress = step / totalSteps;
-            
+        function drawFractalStep(x, y, size, angle, baseLength) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle * Math.PI / 180);
-            drawPolygon(0, 0, length, polygonSides);
-            ctx.restore();
-
-            if (step < totalSteps) return;
-
-            const scaleX = parseFloat(document.getElementById("scaleX").value);
-            const scaleY = parseFloat(document.getElementById("scaleY").value);
-            const rotation = parseFloat(document.getElementById("rotation").value) + frame;
-            const shearX = parseFloat(document.getElementById("shearX").value);
-            const shearY = parseFloat(document.getElementById("shearY").value);
-            const offsetX = parseFloat(document.getElementById("offsetX").value);
-            const offsetY = parseFloat(document.getElementById("offsetY").value);
-
-            const transformed1 = applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY);
-            const transformed2 = applyTransform(x, y, scaleX, scaleY, -rotation, shearX, shearY, -offsetX, -offsetY);
             
-            drawFractalRecursive(transformed1.x, transformed1.y, length * scaleX, angle + rotation, iterations - 1, 1);
-            drawFractalRecursive(transformed2.x, transformed2.y, length * scaleY, angle - rotation, iterations - 1, 1);
+            // Draw base line
+            ctx.beginPath();
+            ctx.moveTo(-baseLength/2, 0);
+            ctx.lineTo(baseLength/2, 0);
+            ctx.stroke();
+
+            // Draw step pattern at attachment points
+            if (stepPoints.length >= 2) {
+                attachmentPoints.forEach(point => {
+                    const index = parseInt(point.split('-')[1]);
+                    if (index < stepPoints.length) {
+                        ctx.save();
+                        const scale = size / baseLength;
+                        ctx.translate(stepPoints[index].x * scale, stepPoints[index].y * scale);
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        for (let i = 1; i < stepPoints.length; i++) {
+                            ctx.lineTo(stepPoints[i].x * scale, stepPoints[i].y * scale);
+                        }
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                });
+            }
+            
+            ctx.restore();
+        }
+
+        function drawFractalRecursive(x, y, size, angle, iterations) {
+            if (iterations === 0) return;
+            
+            const baseLength = parseInt(document.getElementById("baseLength").value);
+            const scale = parseFloat(document.getElementById("scale").value);
+            const rotation = parseFloat(document.getElementById("rotation").value) + frame;
+            
+            drawFractalStep(x, y, size, angle, baseLength);
+            
+            if (stepPoints.length >= 2) {
+                attachmentPoints.forEach(point => {
+                    const index = parseInt(point.split('-')[1]);
+                    if (index < stepPoints.length) {
+                        const newX = x + (stepPoints[index].x * size / baseLength);
+                        const newY = y + (stepPoints[index].y * size / baseLength);
+                        drawFractalRecursive(newX, newY, size * scale, angle + rotation, iterations - 1);
+                    }
+                });
+            }
         }
 
         function animateFractal(timestamp) {
@@ -280,11 +325,9 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = invertColors ? "white" : "black";
             
-            const totalSteps = parseInt(document.getElementById("steps").value);
-            for (let step = 1; step <= totalSteps; step++) {
-                drawFractalRecursive(canvas.width / 2, canvas.height / 2, 200, -90, 
-                    parseInt(document.getElementById("iterations").value), step);
-            }
+            drawFractalRecursive(canvas.width / 2, canvas.height / 2, 
+                parseInt(document.getElementById("baseLength").value),
+                0, parseInt(document.getElementById("iterations").value));
             
             lastTimestamp = timestamp;
             animationFrame = requestAnimationFrame(animateFractal);
@@ -312,14 +355,7 @@
             resetFractal();
         }
 
-        function setPolygon(sides) {
-            polygonSides = sides;
-            customPolygonPoints = null;
-            resetFractal();
-        }
-
         function resetFractal() {
-            // Reset all inputs to default values
             Object.keys(defaultValues).forEach(key => {
                 const element = document.getElementById(key);
                 if (element) {
@@ -330,8 +366,9 @@
             frame = 0;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = invertColors ? "white" : "black";
-            drawFractalRecursive(canvas.width / 2, canvas.height / 2, 200, -90, 
-                parseInt(document.getElementById("iterations").value), 1);
+            drawFractalRecursive(canvas.width / 2, canvas.height / 2,
+                parseInt(document.getElementById("baseLength").value),
+                0, parseInt(document.getElementById("iterations").value));
         }
 
         // Initialize everything
