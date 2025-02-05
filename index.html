@@ -8,8 +8,8 @@
         body { 
             text-align: center; 
             font-family: Arial, sans-serif; 
-            background-color: black; 
-            color: white; 
+            background-color: white; 
+            color: black; 
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -23,8 +23,8 @@
             position: relative;
         }
         canvas { 
-            border: 1px solid white; 
-            background-color: black; 
+            border: 1px solid black; 
+            background-color: white; 
         }
         #fractalCanvas {
             width: 800px;
@@ -48,29 +48,6 @@
             gap: 10px;
             align-items: center;
         }
-        .zoom-controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        .zoom-btn {
-            width: 30px;
-            height: 30px;
-            font-size: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: 1px solid white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .zoom-btn:hover {
-            background: rgba(50, 50, 50, 0.7);
-        }
         label {
             margin: 0 10px;
         }
@@ -81,10 +58,6 @@
     <div class="container">
         <div class="canvas-wrapper">
             <canvas id="fractalCanvas" width="800" height="800"></canvas>
-            <div class="zoom-controls">
-                <button class="zoom-btn" onclick="adjustZoom(1.2)">+</button>
-                <button class="zoom-btn" onclick="adjustZoom(0.8)">-</button>
-            </div>
         </div>
         <div class="editor-controls">
             <h3>Polygon Editor</h3>
@@ -95,18 +68,16 @@
         </div>
     </div>
     <div class="controls">
-        <label>Animation Speed: <input type="range" id="animationSpeed" min="0.1" max="5" value="0.1" step="0.1"></label>
+        <label>Animation Speed: <input type="range" id="animationSpeed" min="0.1" max="5" value="1" step="0.1"></label>
         <label>Iterations: <input type="number" id="iterations" value="5" min="1" max="10"></label>
         <label>Scale X: <input type="number" id="scaleX" value="1" step="0.1"></label>
         <label>Scale Y: <input type="number" id="scaleY" value="1" step="0.1"></label>
-        <label>Scale Z: <input type="number" id="scaleZ" value="1" step="0.1"></label>
         <label>Rotation: <input type="number" id="rotation" value="30"></label>
         <label>Shear X: <input type="number" id="shearX" value="0" step="0.1"></label>
         <label>Shear Y: <input type="number" id="shearY" value="0" step="0.1"></label>
-        <label>Shear Z: <input type="number" id="shearZ" value="0" step="0.1"></label>
         <label>Offset X: <input type="number" id="offsetX" value="0"></label>
         <label>Offset Y: <input type="number" id="offsetY" value="0"></label>
-        <button onclick="toggleInvertColors()">Light Mode</button>
+        <button onclick="toggleInvertColors()">Invert Colors</button>
         <button onclick="startAnimation()">Start Animation</button>
         <button onclick="stopAnimation()">Stop Animation</button>
         <button onclick="setPolygon(3)">Triangle</button>
@@ -114,94 +85,274 @@
         <button onclick="setPolygon(5)">Pentagon</button>
         <button onclick="resetFractal()">Reset</button>
     </div>
-
 <script>
-// Initialize variables
-let zoomLevel = 1;
-let invertColors = true; // Default to dark mode
+        const canvas = document.getElementById("fractalCanvas");
+        const ctx = canvas.getContext("2d");
+        const editorCanvas = document.getElementById("editorCanvas");
+        const editorCtx = editorCanvas.getContext("2d");
+        
+        let frame = 0;
+        let invertColors = false;
+        let animationFrame;
+        let polygonSides = 3;
+        let lastTimestamp = 0;
+        let defaultValues = {
+            animationSpeed: 1,
+            iterations: 5,
+            scaleX: 1,
+            scaleY: 1,
+            rotation: 30,
+            shearX: 0,
+            shearY: 0,
+            offsetX: 0,
+            offsetY: 0
+        };
 
-let defaultValues = {
-    animationSpeed: 0.1,
-    iterations: 5,
-    scaleX: 1,
-    scaleY: 1,
-    scaleZ: 1,
-    rotation: 30,
-    shearX: 0,
-    shearY: 0,
-    shearZ: 0,
-    offsetX: 0,
-    offsetY: 0
-};
+        // Polygon editor variables
+        let points = [];
+        let isDragging = false;
+        let dragIndex = -1;
+        let customPolygonPoints = null;
 
-// Adjust zoom function
-function adjustZoom(factor) {
-    zoomLevel *= factor;
-    resetFractal();
-}
+        function initializeEditor() {
+            editorCanvas.addEventListener('mousedown', startDragging);
+            editorCanvas.addEventListener('mousemove', drag);
+            editorCanvas.addEventListener('mouseup', stopDragging);
+            drawEditor();
+        }
 
-// Function to apply transformations
-function applyTransform(x, y, scaleX, scaleY, scaleZ, rotation, shearX, shearY, shearZ, offsetX, offsetY) {
-    const cos = Math.cos(rotation * Math.PI / 180);
-    const sin = Math.sin(rotation * Math.PI / 180);
-    const zFactor = scaleZ + (x * shearZ) / 1000;
-    
-    return {
-        x: (x * cos * scaleX + y * sin * scaleX + shearX * y + offsetX) * zFactor * zoomLevel,
-        y: (-x * sin * scaleY + y * cos * scaleY + shearY * x + offsetY) * zFactor * zoomLevel
-    };
-}
+        function startDragging(e) {
+            const rect = editorCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (editorCanvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (editorCanvas.height / rect.height);
 
-// Recursive fractal drawing function
-function drawFractalRecursive(x, y, size, angle, iterations) {
-    if (iterations === 0) return;
-    
-    const ctx = document.getElementById("fractalCanvas").getContext("2d");
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle * Math.PI / 180);
-    drawPolygon(0, 0, size * zoomLevel, polygonSides);
-    ctx.restore();
+            for (let i = 0; i < points.length; i++) {
+                const dx = points[i].x - x;
+                const dy = points[i].y - y;
+                if (dx * dx + dy * dy < 100) {
+                    isDragging = true;
+                    dragIndex = i;
+                    return;
+                }
+            }
+        }
 
-    const scaleX = parseFloat(document.getElementById("scaleX").value);
-    const scaleY = parseFloat(document.getElementById("scaleY").value);
-    const scaleZ = parseFloat(document.getElementById("scaleZ").value);
-    const rotation = parseFloat(document.getElementById("rotation").value) + frame;
-    const shearX = parseFloat(document.getElementById("shearX").value);
-    const shearY = parseFloat(document.getElementById("shearY").value);
-    const shearZ = parseFloat(document.getElementById("shearZ").value);
-    const offsetX = parseFloat(document.getElementById("offsetX").value);
-    const offsetY = parseFloat(document.getElementById("offsetY").value);
+        function drag(e) {
+            if (!isDragging) return;
+            
+            const rect = editorCanvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (editorCanvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (editorCanvas.height / rect.height);
+            
+            points[dragIndex] = { x, y };
+            drawEditor();
+        }
 
-    const transformed1 = applyTransform(x, y, scaleX, scaleY, scaleZ, rotation, shearX, shearY, shearZ, offsetX, offsetY);
-    const transformed2 = applyTransform(x, y, scaleX, scaleY, scaleZ, -rotation, shearX, shearY, shearZ, -offsetX, -offsetY);
-    
-    drawFractalRecursive(transformed1.x, transformed1.y, size * scaleX, angle + rotation, iterations - 1);
-    drawFractalRecursive(transformed2.x, transformed2.y, size * scaleY, angle - rotation, iterations - 1);
-}
+        function stopDragging() {
+            isDragging = false;
+            dragIndex = -1;
+        }
 
-// Toggle between dark and light modes
-function toggleInvertColors() {
-    invertColors = !invertColors;
-    document.body.style.backgroundColor = invertColors ? "black" : "white";
-    document.body.style.color = invertColors ? "white" : "black";
-    document.getElementById("fractalCanvas").style.backgroundColor = invertColors ? "black" : "white";
-    document.getElementById("editorCanvas").style.backgroundColor = invertColors ? "black" : "white";
-    
-    // Adjust canvas and zoom button styles
-    const ctx = document.getElementById("fractalCanvas").getContext("2d");
-    ctx.strokeStyle = invertColors ? "white" : "black";
-    ctx.fillStyle = invertColors ? "white" : "black";
+        function addPoint() {
+            const centerX = editorCanvas.width / 2;
+            const centerY = editorCanvas.height / 2;
+            points.push({ x: centerX, y: centerY });
+            drawEditor();
+        }
 
-    const zoomBtns = document.querySelectorAll('.zoom-btn');
-    zoomBtns.forEach(btn => {
-        btn.style.color = invertColors ? "white" : "black";
-        btn.style.borderColor = invertColors ? "white" : "black";
-        btn.style.background = invertColors ? "rgba(0, 0, 0, 0.7)" : "rgba(255, 255, 255, 0.7)";
-    });
-    
-    resetFractal();
-}
-</script>
+        function clearPoints() {
+            points = [];
+            drawEditor();
+        }
+
+        function drawEditor() {
+            editorCtx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
+            editorCtx.strokeStyle = invertColors ? "white" : "black";
+            
+            // Draw grid
+            editorCtx.beginPath();
+            editorCtx.strokeStyle = "#ddd";
+            for (let i = 0; i <= editorCanvas.width; i += 50) {
+                editorCtx.moveTo(i, 0);
+                editorCtx.lineTo(i, editorCanvas.height);
+                editorCtx.moveTo(0, i);
+                editorCtx.lineTo(editorCanvas.width, i);
+            }
+            editorCtx.stroke();
+
+            // Draw center crosshair
+            const centerX = editorCanvas.width / 2;
+            const centerY = editorCanvas.height / 2;
+            editorCtx.beginPath();
+            editorCtx.strokeStyle = "#f00";
+            editorCtx.moveTo(centerX - 10, centerY);
+            editorCtx.lineTo(centerX + 10, centerY);
+            editorCtx.moveTo(centerX, centerY - 10);
+            editorCtx.lineTo(centerX, centerY + 10);
+            editorCtx.stroke();
+
+            // Draw polygon
+            if (points.length > 1) {
+                editorCtx.beginPath();
+                editorCtx.strokeStyle = invertColors ? "white" : "black";
+                editorCtx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    editorCtx.lineTo(points[i].x, points[i].y);
+                }
+                editorCtx.closePath();
+                editorCtx.stroke();
+            }
+
+            // Draw points
+            points.forEach(point => {
+                editorCtx.beginPath();
+                editorCtx.fillStyle = invertColors ? "white" : "black";
+                editorCtx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                editorCtx.fill();
+            });
+        }
+
+        function applyCustomPolygon() {
+            if (points.length >= 3) {
+                // Calculate centroid
+                let sumX = 0, sumY = 0;
+                points.forEach(point => {
+                    sumX += point.x;
+                    sumY += point.y;
+                });
+                const centroidX = sumX / points.length;
+                const centroidY = sumY / points.length;
+
+                // Center the points relative to centroid
+                customPolygonPoints = points.map(point => ({
+                    x: point.x - centroidX + editorCanvas.width / 2,
+                    y: point.y - centroidY + editorCanvas.height / 2
+                }));
+                resetFractal();
+            } else {
+                alert("Please add at least 3 points to create a polygon");
+            }
+        }
+
+        function applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY) {
+            const cos = Math.cos(rotation * Math.PI / 180);
+            const sin = Math.sin(rotation * Math.PI / 180);
+            return {
+                x: (x * cos * scaleX + y * sin * scaleX + shearX * y + offsetX),
+                y: (-x * sin * scaleY + y * cos * scaleY + shearY * x + offsetY)
+            };
+        }
+
+        function drawPolygon(x, y, size, sides) {
+            ctx.beginPath();
+            if (customPolygonPoints) {
+                // Draw custom polygon
+                const scale = size / 100;
+                ctx.moveTo(x + customPolygonPoints[0].x * scale, y + customPolygonPoints[0].y * scale);
+                for (let i = 1; i < customPolygonPoints.length; i++) {
+                    ctx.lineTo(x + customPolygonPoints[i].x * scale, y + customPolygonPoints[i].y * scale);
+                }
+            } else {
+                // Draw regular polygon
+                for (let i = 0; i < sides; i++) {
+                    const angle = (Math.PI * 2 / sides) * i;
+                    const px = x + size * Math.cos(angle);
+                    const py = y + size * Math.sin(angle);
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function drawFractalRecursive(x, y, size, angle, iterations) {
+            if (iterations === 0) return;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle * Math.PI / 180);
+            drawPolygon(0, 0, size, polygonSides);
+            ctx.restore();
+
+            const scaleX = parseFloat(document.getElementById("scaleX").value);
+            const scaleY = parseFloat(document.getElementById("scaleY").value);
+            const rotation = parseFloat(document.getElementById("rotation").value) + frame;
+            const shearX = parseFloat(document.getElementById("shearX").value);
+            const shearY = parseFloat(document.getElementById("shearY").value);
+            const offsetX = parseFloat(document.getElementById("offsetX").value);
+            const offsetY = parseFloat(document.getElementById("offsetY").value);
+
+            const transformed1 = applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY);
+            const transformed2 = applyTransform(x, y, scaleX, scaleY, -rotation, shearX, shearY, -offsetX, -offsetY);
+            
+            drawFractalRecursive(transformed1.x, transformed1.y, size * scaleX, angle + rotation, iterations - 1);
+            drawFractalRecursive(transformed2.x, transformed2.y, size * scaleY, angle - rotation, iterations - 1);
+        }
+
+        function animateFractal(timestamp) {
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            const deltaTime = timestamp - lastTimestamp;
+            const speed = parseFloat(document.getElementById("animationSpeed").value);
+            
+            frame += (deltaTime / 16.67) * speed;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = invertColors ? "white" : "black";
+            
+            drawFractalRecursive(canvas.width / 2, canvas.height / 2, 100, 0, 
+                parseInt(document.getElementById("iterations").value));
+            
+            lastTimestamp = timestamp;
+            animationFrame = requestAnimationFrame(animateFractal);
+        }
+
+        function startAnimation() {
+            if (!animationFrame) {
+                lastTimestamp = 0;
+                animateFractal(0);
+            }
+        }
+
+        function stopAnimation() {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+
+        function toggleInvertColors() {
+            invertColors = !invertColors;
+            document.body.style.backgroundColor = invertColors ? "black" : "white";
+            document.body.style.color = invertColors ? "white" : "black";
+            canvas.style.backgroundColor = invertColors ? "black" : "white";
+            editorCanvas.style.backgroundColor = invertColors ? "black" : "white";
+            drawEditor();
+            resetFractal();
+        }
+
+        function setPolygon(sides) {
+            polygonSides = sides;
+            customPolygonPoints = null;
+            resetFractal();
+        }
+
+        function resetFractal() {
+            Object.keys(defaultValues).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    element.value = defaultValues[key];
+                }
+            });
+            
+            frame = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = invertColors ? "white" : "black";
+            drawFractalRecursive(canvas.width / 2, canvas.height / 2, 100, 0, 
+                parseInt(document.getElementById("iterations").value));
+        }
+
+        // Initialize everything
+        initializeEditor();
+        resetFractal();
+    </script>
 </body>
 </html>
