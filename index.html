@@ -23,12 +23,19 @@
         <label>Offset X: <input type="number" id="offsetX" value="0"></label>
         <label>Offset Y: <input type="number" id="offsetY" value="0"></label>
         <button onclick="toggleInvertColors()">Invert Colors</button>
+        <button onclick="startAnimation()">Start Animation</button>
+        <button onclick="stopAnimation()">Stop Animation</button>
+        <button onclick="setPolygon(3)">Triangle</button>
+        <button onclick="setPolygon(4)">Square</button>
+        <button onclick="setPolygon(5)">Pentagon</button>
     </div>
     <script>
         const canvas = document.getElementById("fractalCanvas");
         const ctx = canvas.getContext("2d");
         let frame = 0;
         let invertColors = false;
+        let animationFrame;
+        let polygonSides = 3;
 
         function applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY) {
             return {
@@ -68,7 +75,18 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = invertColors ? "white" : "black";
             drawFractalRecursive(canvas.width / 2, canvas.height - 50, 150, -90, parseInt(document.getElementById("iterations").value));
-            requestAnimationFrame(animateFractal);
+            animationFrame = requestAnimationFrame(animateFractal);
+        }
+
+        function startAnimation() {
+            if (!animationFrame) {
+                animateFractal();
+            }
+        }
+
+        function stopAnimation() {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
         }
 
         function toggleInvertColors() {
@@ -78,7 +96,12 @@
             canvas.style.backgroundColor = invertColors ? "black" : "white";
         }
 
-        animateFractal();
+        function setPolygon(sides) {
+            polygonSides = sides;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = invertColors ? "white" : "black";
+            drawFractalRecursive(canvas.width / 2, canvas.height - 50, 150, -90, parseInt(document.getElementById("iterations").value));
+        }
     </script>
 </body>
 </html>
