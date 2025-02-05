@@ -3,54 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Affine Fractal Generator</title>
+    <title>Fractal Machine</title>
     <style>
-        body { text-align: center; font-family: Arial, sans-serif; }
-        canvas { border: 1px solid black; }
+        body { text-align: center; font-family: Arial, sans-serif; background-color: white; color: black; }
+        canvas { border: 1px solid black; background-color: white; }
         .controls { margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>Affine Fractal Generator</h1>
+    <h1>Fractal Machine</h1>
     <canvas id="fractalCanvas" width="600" height="600"></canvas>
     <div class="controls">
         <label>Iterations: <input type="number" id="iterations" value="5" min="1" max="10"></label>
-        <label>Scale: <input type="number" id="scale" value="0.5" step="0.1"></label>
+        <label>Scale X: <input type="number" id="scaleX" value="0.7" step="0.1"></label>
+        <label>Scale Y: <input type="number" id="scaleY" value="0.7" step="0.1"></label>
         <label>Rotation: <input type="number" id="rotation" value="30"></label>
+        <label>Shear X: <input type="number" id="shearX" value="0" step="0.1"></label>
+        <label>Shear Y: <input type="number" id="shearY" value="0" step="0.1"></label>
         <label>Offset X: <input type="number" id="offsetX" value="0"></label>
         <label>Offset Y: <input type="number" id="offsetY" value="0"></label>
-        <button onclick="drawFractal()">Generate</button>
+        <button onclick="toggleInvertColors()">Invert Colors</button>
     </div>
     <script>
         const canvas = document.getElementById("fractalCanvas");
         const ctx = canvas.getContext("2d");
+        let frame = 0;
+        let invertColors = false;
 
-        function drawAffineFractal(x, y, length, angle, iterations) {
+        function applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY) {
+            return {
+                x: x * scaleX + y * shearX + offsetX,
+                y: x * shearY + y * scaleY + offsetY
+            };
+        }
+
+        function drawFractalRecursive(x, y, length, angle, iterations) {
             if (iterations === 0) return;
-            
             const radian = angle * Math.PI / 180;
             const xEnd = x + length * Math.cos(radian);
             const yEnd = y - length * Math.sin(radian);
-            
+
             ctx.beginPath();
             ctx.moveTo(x, y);
             ctx.lineTo(xEnd, yEnd);
             ctx.stroke();
-            
-            const scale = parseFloat(document.getElementById("scale").value);
-            const rotation = parseFloat(document.getElementById("rotation").value);
+
+            const scaleX = parseFloat(document.getElementById("scaleX").value);
+            const scaleY = parseFloat(document.getElementById("scaleY").value);
+            const rotation = parseFloat(document.getElementById("rotation").value) + frame;
+            const shearX = parseFloat(document.getElementById("shearX").value);
+            const shearY = parseFloat(document.getElementById("shearY").value);
             const offsetX = parseFloat(document.getElementById("offsetX").value);
             const offsetY = parseFloat(document.getElementById("offsetY").value);
+
+            const transformed1 = applyTransform(xEnd, yEnd, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY);
+            const transformed2 = applyTransform(xEnd, yEnd, scaleX, scaleY, -rotation, shearX, shearY, -offsetX, -offsetY);
             
-            drawAffineFractal(xEnd + offsetX, yEnd + offsetY, length * scale, angle + rotation, iterations - 1);
-            drawAffineFractal(xEnd - offsetX, yEnd - offsetY, length * scale, angle - rotation, iterations - 1);
+            drawFractalRecursive(transformed1.x, transformed1.y, length * scaleX, angle + rotation, iterations - 1);
+            drawFractalRecursive(transformed2.x, transformed2.y, length * scaleY, angle - rotation, iterations - 1);
         }
-        
-        function drawFractal() {
+
+        function animateFractal() {
+            frame += 1;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = "black";
-            drawAffineFractal(canvas.width / 2, canvas.height - 50, 150, -90, parseInt(document.getElementById("iterations").value));
+            ctx.strokeStyle = invertColors ? "white" : "black";
+            drawFractalRecursive(canvas.width / 2, canvas.height - 50, 150, -90, parseInt(document.getElementById("iterations").value));
+            requestAnimationFrame(animateFractal);
         }
+
+        function toggleInvertColors() {
+            invertColors = !invertColors;
+            document.body.style.backgroundColor = invertColors ? "black" : "white";
+            document.body.style.color = invertColors ? "white" : "black";
+            canvas.style.backgroundColor = invertColors ? "black" : "white";
+        }
+
+        animateFractal();
     </script>
 </body>
 </html>
