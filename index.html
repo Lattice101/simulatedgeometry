@@ -28,6 +28,7 @@
         <button onclick="setPolygon(3)">Triangle</button>
         <button onclick="setPolygon(4)">Square</button>
         <button onclick="setPolygon(5)">Pentagon</button>
+        <button onclick="resetFractal()">Reset</button>
     </div>
     <script>
         const canvas = document.getElementById("fractalCanvas");
@@ -44,16 +45,25 @@
             };
         }
 
+        function drawPolygon(x, y, size, sides) {
+            ctx.beginPath();
+            for (let i = 0; i < sides; i++) {
+                const angle = (Math.PI * 2 / sides) * i;
+                const px = x + size * Math.cos(angle);
+                const py = y + size * Math.sin(angle);
+                ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+
         function drawFractalRecursive(x, y, length, angle, iterations) {
             if (iterations === 0) return;
-            const radian = angle * Math.PI / 180;
-            const xEnd = x + length * Math.cos(radian);
-            const yEnd = y - length * Math.sin(radian);
-
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(xEnd, yEnd);
-            ctx.stroke();
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle * Math.PI / 180);
+            drawPolygon(0, 0, length, polygonSides);
+            ctx.restore();
 
             const scaleX = parseFloat(document.getElementById("scaleX").value);
             const scaleY = parseFloat(document.getElementById("scaleY").value);
@@ -63,8 +73,8 @@
             const offsetX = parseFloat(document.getElementById("offsetX").value);
             const offsetY = parseFloat(document.getElementById("offsetY").value);
 
-            const transformed1 = applyTransform(xEnd, yEnd, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY);
-            const transformed2 = applyTransform(xEnd, yEnd, scaleX, scaleY, -rotation, shearX, shearY, -offsetX, -offsetY);
+            const transformed1 = applyTransform(x, y, scaleX, scaleY, rotation, shearX, shearY, offsetX, offsetY);
+            const transformed2 = applyTransform(x, y, scaleX, scaleY, -rotation, shearX, shearY, -offsetX, -offsetY);
             
             drawFractalRecursive(transformed1.x, transformed1.y, length * scaleX, angle + rotation, iterations - 1);
             drawFractalRecursive(transformed2.x, transformed2.y, length * scaleY, angle - rotation, iterations - 1);
@@ -74,7 +84,7 @@
             frame += 1;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = invertColors ? "white" : "black";
-            drawFractalRecursive(canvas.width / 2, canvas.height - 50, 150, -90, parseInt(document.getElementById("iterations").value));
+            drawFractalRecursive(canvas.width / 2, canvas.height / 2, 150, -90, parseInt(document.getElementById("iterations").value));
             animationFrame = requestAnimationFrame(animateFractal);
         }
 
@@ -98,9 +108,13 @@
 
         function setPolygon(sides) {
             polygonSides = sides;
+            resetFractal();
+        }
+
+        function resetFractal() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = invertColors ? "white" : "black";
-            drawFractalRecursive(canvas.width / 2, canvas.height - 50, 150, -90, parseInt(document.getElementById("iterations").value));
+            drawFractalRecursive(canvas.width / 2, canvas.height / 2, 150, -90, parseInt(document.getElementById("iterations").value));
         }
     </script>
 </body>
