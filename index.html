@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- Previous head content remains the same until style section -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -115,12 +114,12 @@
         <button onclick="setPolygon(5)">Pentagon</button>
         <button onclick="resetFractal()">Reset</button>
     </div>
-<script>
-// Previous variable declarations remain the same, adding:
-let zoomLevel = 1;
-let invertColors = true; // Start inverted by default
 
-// Update defaultValues object
+<script>
+// Initialize variables
+let zoomLevel = 1;
+let invertColors = true; // Default to dark mode
+
 let defaultValues = {
     animationSpeed: 0.1,
     iterations: 5,
@@ -135,18 +134,16 @@ let defaultValues = {
     offsetY: 0
 };
 
-// Add zoom function
+// Adjust zoom function
 function adjustZoom(factor) {
     zoomLevel *= factor;
     resetFractal();
 }
 
-// Update applyTransform to include Z-axis
+// Function to apply transformations
 function applyTransform(x, y, scaleX, scaleY, scaleZ, rotation, shearX, shearY, shearZ, offsetX, offsetY) {
     const cos = Math.cos(rotation * Math.PI / 180);
     const sin = Math.sin(rotation * Math.PI / 180);
-    
-    // Apply Z-axis transformations
     const zFactor = scaleZ + (x * shearZ) / 1000;
     
     return {
@@ -155,10 +152,11 @@ function applyTransform(x, y, scaleX, scaleY, scaleZ, rotation, shearX, shearY, 
     };
 }
 
-// Update drawFractalRecursive to include Z-axis
+// Recursive fractal drawing function
 function drawFractalRecursive(x, y, size, angle, iterations) {
     if (iterations === 0) return;
     
+    const ctx = document.getElementById("fractalCanvas").getContext("2d");
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle * Math.PI / 180);
@@ -182,17 +180,19 @@ function drawFractalRecursive(x, y, size, angle, iterations) {
     drawFractalRecursive(transformed2.x, transformed2.y, size * scaleY, angle - rotation, iterations - 1);
 }
 
-// Update toggleInvertColors to invert the behavior
+// Toggle between dark and light modes
 function toggleInvertColors() {
     invertColors = !invertColors;
     document.body.style.backgroundColor = invertColors ? "black" : "white";
     document.body.style.color = invertColors ? "white" : "black";
-    canvas.style.backgroundColor = invertColors ? "black" : "white";
-    editorCanvas.style.backgroundColor = invertColors ? "black" : "white";
-    canvas.style.borderColor = invertColors ? "white" : "black";
-    editorCanvas.style.borderColor = invertColors ? "white" : "black";
+    document.getElementById("fractalCanvas").style.backgroundColor = invertColors ? "black" : "white";
+    document.getElementById("editorCanvas").style.backgroundColor = invertColors ? "black" : "white";
     
-    // Update zoom button styles
+    // Adjust canvas and zoom button styles
+    const ctx = document.getElementById("fractalCanvas").getContext("2d");
+    ctx.strokeStyle = invertColors ? "white" : "black";
+    ctx.fillStyle = invertColors ? "white" : "black";
+
     const zoomBtns = document.querySelectorAll('.zoom-btn');
     zoomBtns.forEach(btn => {
         btn.style.color = invertColors ? "white" : "black";
@@ -200,15 +200,8 @@ function toggleInvertColors() {
         btn.style.background = invertColors ? "rgba(0, 0, 0, 0.7)" : "rgba(255, 255, 255, 0.7)";
     });
     
-    drawEditor();
     resetFractal();
 }
-
-// The rest of the code remains the same...
-
-// Initialize everything
-initializeEditor();
-resetFractal();
 </script>
 </body>
 </html>
